@@ -2,7 +2,7 @@
 
 Hsu-kuang Chiu<sup>1</sup>, Antonio Prioletti<sup>2</sup>, Jie Li<sup>2</sup>, Jeannette Bohg<sup>1</sup>
 
-Stanford University<sup>1</sup>, Toyota Research Institute<sup>2</sup>
+<sup>1</sup>Stanford University, <sup>2</sup>Toyota Research Institute
 
 First Place Award, NuScenes Tracking Challenge, at AI Driving Olympics Workshop, NeurIPS 2019. 
 
