@@ -1,4 +1,4 @@
-# 3D Multi-Object Tracking for Autonomous Driving
+# Probabilistic 3D Multi-Object Tracking for Autonomous Driving
 
 Hsu-kuang Chiu<sup>1</sup>, Antonio Prioletti<sup>2</sup>, Jie Li<sup>2</sup>, Jeannette Bohg<sup>1</sup>
 
@@ -9,6 +9,8 @@ First Place Award, NuScenes Tracking Challenge, at AI Driving Olympics Workshop,
 ## Abstract
 
 We present our on-line tracking method, which wins the first place award of the [NuScenes Tracking Challenge](https://www.nuscenes.org/tracking)[1], held in the AI Driving Olympics Workshop at NeurIPS 2019. Our method details, technical report, and code will be available soon.
+
+<img align="center" src="images/architecture.jpg">
 
 ## Quantitative Results
 
@@ -21,7 +23,15 @@ Our method | 56.1 | 27.2 | 74.1 | 73.5 | 50.6 | 75.5 | 33.7 | 58.0
 
 We can see that our method improves the AMOTAs significantly, especially for the smaller objects, such as pedestrians.
 
-The test set AMOTA will be available at the NuScenes Tracking Challenge leaderboard.
+The NuScenes Tracking Challenge organizer shared the test set performance of the top 3 participants and the AB3DMOT [2] baseline, as shown in the following table. The full tracking challenge leaderboard will be released to public soon by the organizer.
+
+Rank       | Team Name               | Overall
+:--------: | :--                     | --:
+1          | StanfordIPRL-TRI (Ours) | 55.0
+2          | VV_team                 | 37.1
+3          | CenterTrack             | 10.8
+baseline   | AB3DMOT [2]             | 15.1
+
 
 ## Qualitative Results
 
@@ -39,7 +49,15 @@ Input Detections | Ground-Truth
 
 We can see that our method is able to better track the object making a sharp turn.
 
+
+## Acknowledgement
+- We implemented our method on top of [AB3DMOT](https://github.com/xinshuoweng/AB3DMOT)[2]'s open-source code.
+
+- Toyota Research Institute ("TRI") provided funds to assist the authors with their research but this article solely reflects the opinions and conclusions of its authors and not TRI or any other Toyota entity.
+
+
 ## References
-- \[1\] *"nuScenes: A multimodal dataset for autonomous driving"*, H. Caesar, V. Bankiti, A. H. Lang, S. Vora, V. E. Liong, Q. Xu, A. Krishnan, Y. Pan, G. Baldan and O. Beijbom, In arXiv 2019.
-- \[2\] *"A Baseline for 3D Multi-Object Tracking"*, X. Weng and K. Kitani, In arXiv 2019.
+- \[1\] *"nuScenes: A multimodal dataset for autonomous driving"*, Holger Caesar, Varun Bankiti, Alex H. Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Giancarlo Baldan, and Oscar Beijbom, arXiv:1903.11027, 2019.
+- \[2\] *"A Baseline for 3D Multi-Object Tracking"*, Xinshuo Weng and Kris Kitani, arXiv:1907.03961, 2019.
+
 
