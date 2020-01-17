@@ -4,11 +4,13 @@ Hsu-kuang Chiu<sup>1</sup>, Antonio Prioletti<sup>2</sup>, Jie Li<sup>2</sup>, J
 
 <sup>1</sup>Stanford University, <sup>2</sup>Toyota Research Institute
 
-First Place Award, NuScenes Tracking Challenge, at AI Driving Olympics Workshop, NeurIPS 2019. 
+First Place Award, NuScenes Tracking Challenge, at AI Driving Olympics Workshop, NeurIPS 2019.
+
+ 
 
 ## Abstract
 
-We present our on-line tracking method, which wins the first place award of the [NuScenes Tracking Challenge](https://www.nuscenes.org/tracking)[1], held in the AI Driving Olympics Workshop at NeurIPS 2019. Our method details, technical report, and code will be available soon.
+We present our on-line tracking method, which wins the first place award of the [NuScenes Tracking Challenge](https://www.nuscenes.org/tracking)[1], held in the AI Driving Olympics Workshop at NeurIPS 2019. Our technical report is available in [arxiv](https://arxiv.org/abs/2001.05673). Our code will be available soon.
 
 <img align="center" src="images/architecture.jpg">
 
