@@ -18,7 +18,7 @@ We present our on-line tracking method, which wins the first place award of the 
 
 ### Validation Set Results
 
-The following table shows our quantitative tracking results for the validation set of NuScenes: evaluation in terms of overall Average Multi-Object Tracking Accuracy (AMOTA) and individual AMOTA for each object category in comparison with the tracking challenge official [AB3DMOT](https://github.com/xinshuoweng/AB3DMOT)[2] baseline results. For the full validation set results including our implementation of the AB3DMOT baseline and our ablations, please refer to our paper in [arxiv](https://arxiv.org/abs/2001.05673).
+The following table shows our quantitative tracking results for the validation set of NuScenes: evaluation in terms of overall Average Multi-Object Tracking Accuracy (AMOTA) and individual AMOTA for each object category in comparison with the tracking challenge official [AB3DMOT](https://github.com/xinshuoweng/AB3DMOT)[2] baseline results. The AB3DMOT[2] baseline and our method use the same [MEGVII](https://github.com/poodarchu/Det3D)[3] detection results as the input of the tracking systems. For the full validation set results including our implementation of the AB3DMOT[2] baseline and our ablations, please refer to our paper in [arxiv](https://arxiv.org/abs/2001.05673).
 
 Method | Overall | bicycle | bus | car | motorcycle | pedestrian | trailer | truck
 ---------- | --: | --: | --: | --: | --: | --: | --: | --: 
@@ -30,14 +30,14 @@ We can see that our method improves the AMOTAs significantly, especially for the
 
 ### Test Set Results
 
-The NuScenes Tracking Challenge organizer shared the test set performance of the top 3 participants and the official AB3DMOT [2] baseline, as shown in the following table. The full tracking challenge leaderboard will be released to public soon by the organizer at the [tracking challenge webpage](https://www.nuscenes.org/tracking).
+The NuScenes Tracking Challenge organizer shared the test set performance of the top 3 participants and the official AB3DMOT[2] baseline, as shown in the following table. The AB3DMOT[2] baseline and our method use the same MEGVII[3] detection results as the input of the tracking systems. The full tracking challenge leaderboard can be seen at the [tracking challenge webpage](https://www.nuscenes.org/tracking).
 
 Rank       | Team Name               | Overall
 :--------: | :--                     | --:
 1          | StanfordIPRL-TRI (Ours) | 55.0
 2          | VV_team                 | 37.1
 3          | CenterTrack             | 10.8
-baseline   | AB3DMOT \[2\]           | 15.1
+baseline   | AB3DMOT\[2\]           | 15.1
 
 
 ## Qualitative Results
@@ -94,13 +94,13 @@ python main.py val 2 m 11 greedy true nuscenes results/000008;
 python evaluate_nuscenes.py --output_dir results/000008 results/000008/val/results_val_probabilistic_tracking.json > results/000008/output.txt
 ```
 
-8. You can also run our implementation of the AB3DMOT baseline method:
+8. You can also run our implementation of the AB3DMOT[2] baseline method:
 ```
 python main.py val 0 iou 0.1 h false nuscenes results/000001;
 python evaluate_nuscenes.py --output_dir results/000001 results/000001/val/results_val_probabilistic_tracking.json > results/000001/output.txt
 ```
 
-9. Or you can run all the tracking methods (our implementation of AB3DMOT, our ablation methods, and our final proposed method) using the script:
+9. Or you can run all the tracking methods (our implementation of AB3DMOT[2], our ablation methods, and our final proposed method) using the script:
 ```
 source run.sh
 ```
