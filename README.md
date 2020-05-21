@@ -119,6 +119,17 @@ python get_nuscenes_stats.py > nuscenes_train_stats.txt
 - Toyota Research Institute ("TRI") provided funds to assist the authors with their research but this article solely reflects the opinions and conclusions of its authors and not TRI or any other Toyota entity.
 
 
+## Change Log
+by bugerry87:
+
+- Update requirements to latest packages (2020/5/21)
+- Change from scikit-learn to scipy
+- Fix numba warnings
+- Removed hardcode parameters, paths
+- Fit expected data-structure to nuScenes recommendation, see: https://github.com/nutonomy/nuscenes-devkit
+- Provide a single shot `run.sh`, while the previous version became `run-grid-search.sh` that trails 8 different settings
+
+
 ## References
 - \[1\] *"nuScenes: A multimodal dataset for autonomous driving"*, Holger Caesar, Varun Bankiti, Alex H. Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Giancarlo Baldan, and Oscar Beijbom, arXiv:1903.11027, 2019.
 - \[2\] *"A Baseline for 3D Multi-Object Tracking"*, Xinshuo Weng and Kris Kitani, arXiv:1907.03961, 2019.
