@@ -5,7 +5,7 @@ import os.path, copy, numpy as np, time, sys
 from numba import jit
 from scipy.optimize import linear_sum_assignment as linear_assignment
 from filterpy.kalman import KalmanFilter
-from utils import load_list_from_folder, fileparts, mkdir_if_missing
+from utils import mkdir_if_missing
 from scipy.spatial import ConvexHull
 from covariance import Covariance
 import json
