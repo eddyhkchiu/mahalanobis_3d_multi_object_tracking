@@ -9,7 +9,7 @@ First Place Award, NuScenes Tracking Challenge, at AI Driving Olympics Workshop,
 
 ## Disclaimer
 
-This is a 'friendly' fork of https://github.com/eddyhkchiu/mahalanobis_3d_multi_object_tracking.
+This is a 'friendly' fork of [mahalanobis_3d_multi_object_tracking](https://github.com/eddyhkchiu/mahalanobis_3d_multi_object_tracking).
 The original author deserves all the credits!
  
 
