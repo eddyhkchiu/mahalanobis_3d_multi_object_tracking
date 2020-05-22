@@ -7,7 +7,7 @@ from scipy.optimize import linear_sum_assignment as linear_assignment
 from filterpy.kalman import KalmanFilter
 from utils import mkdir_if_missing
 from scipy.spatial import ConvexHull
-from covariance import Covariance
+from covariance import covariance
 import json
 from nuscenes import NuScenes
 from nuscenes.eval.common.data_classes import EvalBoxes
@@ -232,28 +232,10 @@ class KalmanBoxTracker(object):
                             [0,0,0,0,0,0,1,0,0,0,0]])
 
     # Initialize the covariance matrix, see covariance.py for more details
-    if covariance_id == 0: # exactly the same as AB3DMOT baseline
-      # self.kf.R[0:,0:] *= 10.   # measurement uncertainty
-      self.kf.P[7:,7:] *= 1000. #state uncertainty, give high uncertainty to the unobservable initial velocities, covariance matrix
-      self.kf.P *= 10.
-    
-      # self.kf.Q[-1,-1] *= 0.01    # process uncertainty
-      self.kf.Q[7:,7:] *= 0.01
-    elif covariance_id == 1: # for kitti car, not supported
-      covariance = Covariance(covariance_id)
-      self.kf.P = covariance.P
-      self.kf.Q = covariance.Q
-      self.kf.R = covariance.R
-    elif covariance_id == 2: # for nuscenes
-      covariance = Covariance(covariance_id)
-      self.kf.P = covariance.P[tracking_name]
-      self.kf.Q = covariance.Q[tracking_name]
-      self.kf.R = covariance.R[tracking_name]
-      if not use_angular_velocity:
+    self.kf.P, self.kf.Q, self.kf.R = covariance(covariance_id, tracking_name)
+    if not use_angular_velocity:
         self.kf.P = self.kf.P[:-1,:-1]
         self.kf.Q = self.kf.Q[:-1,:-1]
-    else:
-      assert(False)
 
     self.kf.x[:7] = bbox3D.reshape((7, 1))
 
