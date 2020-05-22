@@ -6,6 +6,11 @@ Hsu-kuang Chiu<sup>1</sup>, Antonio Prioletti<sup>2</sup>, Jie Li<sup>2</sup>, J
 
 First Place Award, NuScenes Tracking Challenge, at AI Driving Olympics Workshop, NeurIPS 2019.
 
+
+## Disclaimer
+
+This is a 'friendly' fork of [mahalanobis_3d_multi_object_tracking](https://github.com/eddyhkchiu/mahalanobis_3d_multi_object_tracking).
+The original author deserves all the credits!
  
 
 ## Abstract
@@ -59,50 +64,27 @@ We can see that our method is able to better track the object making a sharp tur
 
 ## Using Our Code to Reproduce the Validation Set Results
 
-1. Choose a directory YOUR_WORKING_DIR (mine is /juno/u/hkchiu), and download our code and setup the environment. In the following command, replace /juno/u/hkchiu with YOUR_WORKING_DIR:
+1. Clone the repo and setup the environment:
 ```
-cd /juno/u/hkchiu
-git clone https://github.com/eddyhkchiu/mahalanobis_3d_multi_object_tracking 
+git clone https://github.com/eddyhkchiu/mahalanobis_3d_multi_object_tracking
+cd mahalanobis_3d_multi_object_tracking
 conda create --name probabilistic_tracking python=3.6
 conda activate probabilistic_tracking
-cd mahalanobis_3d_multi_object_tracking
 pip install -r requirements.txt
 ```
 
-2. Choose a directory YOUR_NUSCENES_DEVKIT_DIR (mine is /juno/u/hkchiu) and download the nuscenes devkit. In the following command, replace /juno/u/hkchiu with YOUR_NUSCENES_DEVKIT_DIR:
+2. Choose a directory YOUR_NUSCENES_DATA_DIR (i.e. ~/dataset/nuscenes/), download then and unzip at least the mini, optionally the trainval, and test data from the NuScenes [download webpage](https://www.nuscenes.org/download). Note that you will need to create an account there. The total size of the zip files is roughly 360GB, and the unzip step also requires the same amount of extra disk space.
+
+3. Choose a directory YOUR_NUSCENES_DETECTION_DIR (i.e. ~/dataset/nuscenes/results/megvii), and download then unzip the [MEGVII](https://github.com/poodarchu/Det3D)[3]'s detection results from the NuScenes [tracking webpage](https://www.nuscenes.org/data/detection-megvii.zip). 
+
+4. Run a single sequence of tracking and evaluation, i.e.:
 ```
-cd /juno/u/hkchiu
-git clone https://github.com/nutonomy/nuscenes-devkit.git
-cd nuscenes-devkit
-pip install -r setup/requirements.txt
+source run.sh ~/datasets/nuscenes/ ../../datasets/nuscenes/results/megvii/detection/megvii_val.json ../../datasets/nuscenes/results/ val
 ```
 
-3. Include nuscenes devkit into python path. In the following command, replace /juno/u/hkchiu with YOUR_NUSCENES_DEVKIT_DIR. Note that you will need to run this everytime after you activate the conda environment): 
+5. Or run all the tracking methods (our implementation of AB3DMOT[2], our ablation methods, and our final proposed method) using the script, i.e.:
 ```
-export PYTHONPATH="${PYTHONPATH}:/juno/u/hkchiu/nuscenes-devkit/python-sdk"
-```
-
-4. Choose a directory YOUR_NUSCENES_DATA_DIR (mine is /juno/u/hkchiu/dataset/nuscenes), and download then unzip the mini, trainval, and test data from the NuScenes [download webpage](https://www.nuscenes.org/download). Note that you will need to create an account there. The total size of the zip files is roughly 360GB, and the unzip step also requires the same amount of extra disk space.
-
-5. Choose a directory YOUR_NUSCENES_DETECTION_DIR (mine is /juno/u/hkchiu/dataset/nuscenes_new), and download then unzip the [MEGVII](https://github.com/poodarchu/Det3D)[3]'s detection results from the NuScenes [tracking webpage](https://www.nuscenes.org/data/detection-megvii.zip). 
-
-6. Edit our code: in main.py, evaluate_nuscenes.py, get_nuscenes_stats.py, replace “/juno/u/hkchiu/dataset/nuscenes_new/” with YOUR_NUSCENES_DETECTION_DIR, and replace “/juno/u/hkchiu/dataset/nuscenes/” with your YOUR_NUSCENES_DATA_DIR. 
-
-7. Run the tracking code of our proposed method and the evaluation code (tracking takes 15 minutes, evaluation takes 90 minutes):
-```
-python main.py val 2 m 11 greedy true nuscenes results/000008;
-python evaluate_nuscenes.py --output_dir results/000008 results/000008/val/results_val_probabilistic_tracking.json > results/000008/output.txt
-```
-
-8. You can also run our implementation of the AB3DMOT[2] baseline method:
-```
-python main.py val 0 iou 0.1 h false nuscenes results/000001;
-python evaluate_nuscenes.py --output_dir results/000001 results/000001/val/results_val_probabilistic_tracking.json > results/000001/output.txt
-```
-
-9. Or you can run all the tracking methods (our implementation of AB3DMOT[2], our ablation methods, and our final proposed method) using the script:
-```
-source run.sh
+source run-grid-search.sh ~/datasets/nuscenes/ ../../datasets/nuscenes/results/megvii/detection/megvii_val.json ../../datasets/nuscenes/results/ val
 ```
 
 10. (Optional) You can also run get_nuscenes_stats.py to see how we use the training set data to estimate the Kalman Filter's covariance matrices. (10 minutes) I have hardcoded the results into the covariance.py file, so running get_nuscenes_stats.py is not required to run the above tracking and evaluation commands.
@@ -117,6 +99,17 @@ python get_nuscenes_stats.py > nuscenes_train_stats.txt
 - We used [MEGVII](https://github.com/poodarchu/Det3D)[3]'s detection results as the input of our tracking method.
 
 - Toyota Research Institute ("TRI") provided funds to assist the authors with their research but this article solely reflects the opinions and conclusions of its authors and not TRI or any other Toyota entity.
+
+
+## Change Log
+by bugerry87:
+
+- Update requirements to latest packages (2020/5/21)
+- Change from scikit-learn to scipy
+- Fix numba warnings
+- Removed hardcode parameters, paths
+- Fit expected data-structure to nuScenes recommendation, see: https://github.com/nutonomy/nuscenes-devkit
+- Provide a single shot `run.sh`, while the previous version became `run-grid-search.sh` that trails 8 different settings
 
 
 ## References
