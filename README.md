@@ -79,12 +79,20 @@ pip install -r requirements.txt
 
 4. Run a single sequence of tracking and evaluation, i.e.:
 ```
-source run.sh ~/datasets/nuscenes/ ../../datasets/nuscenes/results/megvii/detection/megvii_val.json ../../datasets/nuscenes/results/ val
+source run.sh \
+ ~/datasets/nuscenes/ \
+ ~/datasets/nuscenes/results/megvii/detection/megvii_val.json \
+ ~/datasets/nuscenes/results/ \
+ val
 ```
 
 5. Or run all the tracking methods (our implementation of AB3DMOT[2], our ablation methods, and our final proposed method) using the script, i.e.:
 ```
-source run-grid-search.sh ~/datasets/nuscenes/ ../../datasets/nuscenes/results/megvii/detection/megvii_val.json ../../datasets/nuscenes/results/ val
+source run-grid-search.sh \
+ ~/datasets/nuscenes/ \
+ ~/datasets/nuscenes/results/megvii/detection/megvii_val.json \
+ ~/datasets/nuscenes/results/ \
+ val
 ```
 
 10. (Optional) You can also run get_nuscenes_stats.py to see how we use the training set data to estimate the Kalman Filter's covariance matrices. (10 minutes) I have hardcoded the results into the covariance.py file, so running get_nuscenes_stats.py is not required to run the above tracking and evaluation commands.
