@@ -33,6 +33,7 @@ python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000001/probabilistic_tracking_results.json \
  --version "$4" \
+  --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000001  > "$3"StanfordIPRL-TRI/"$4"/000001/output.txt &&
 
 python evaluate_nuscenes.py \
@@ -45,34 +46,40 @@ python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000003/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000003 > "$3"StanfordIPRL-TRI/"$4"/000003/output.txt &&
 
 python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000004/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000004  > "$3"StanfordIPRL-TRI/"$4"/000004/output.txt &&
 
 python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000005/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000005 > "$3"StanfordIPRL-TRI/"$4"/000005/output.txt &&
 
 python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000006/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000006 > "$3"StanfordIPRL-TRI/"$4"/000006/output.txt &&
 
 python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000007/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000007 > "$3"StanfordIPRL-TRI/"$4"/000007/output.txt &&
 
 python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/000008/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/000008 > "$3"StanfordIPRL-TRI/"$4"/000008/output.txt

@@ -28,4 +28,5 @@ python evaluate_nuscenes.py \
  "$1" \
  "$3"StanfordIPRL-TRI/"$4"/$timestamp/probabilistic_tracking_results.json \
  --version "$4" \
+ --eval_set "$4" \
  --output_dir "$3"StanfordIPRL-TRI/"$4"/timestamp  > "$3"StanfordIPRL-TRI/"$4"/$timestamp/output.txt
