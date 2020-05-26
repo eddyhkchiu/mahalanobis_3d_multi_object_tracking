@@ -3,11 +3,11 @@
 from __future__ import print_function
 import os.path, copy, numpy as np, time, sys
 from numba import jit
-from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment as linear_assignment
 from filterpy.kalman import KalmanFilter
-from utils import load_list_from_folder, fileparts, mkdir_if_missing
+from utils import mkdir_if_missing
 from scipy.spatial import ConvexHull
-from covariance import Covariance
+from covariance import covariance
 import json
 from nuscenes import NuScenes
 from nuscenes.eval.common.data_classes import EvalBoxes
@@ -16,11 +16,11 @@ from nuscenes.eval.detection.data_classes import DetectionBox
 from pyquaternion import Quaternion
 from tqdm import tqdm
 
-@jit    
+@jit(nopython=True) 
 def poly_area(x,y):
-    return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
+    return 0.5*np.abs((x @ np.roll(y,1)) - (y @ np.roll(x,1)))
 
-@jit        
+@jit(nopython=True)      
 def box3d_vol(corners):
     ''' corners: (8,3) no assumption on axis direction '''
     a = np.sqrt(np.sum((corners[0,:] - corners[1,:])**2))
@@ -28,7 +28,7 @@ def box3d_vol(corners):
     c = np.sqrt(np.sum((corners[0,:] - corners[4,:])**2))
     return a*b*c
 
-@jit       
+@jit(forceobj=True)
 def convex_hull_intersection(p1, p2):
     """ Compute area of two convex hull's intersection area.
         p1,p2 are a list of (x,y) tuples of hull vertices.
@@ -112,7 +112,7 @@ def iou3d(corners1, corners2):
     iou = inter_vol / (vol1 + vol2 - inter_vol)
     return iou, iou_2d
 
-@jit       
+@jit(forceobj=True)
 def roty(t):
     ''' Rotation about the y-axis. '''
     c = np.cos(t)
@@ -121,7 +121,7 @@ def roty(t):
                      [0,  1,  0],
                      [-s, 0,  c]])
 
-@jit       
+@jit(forceobj=True)      
 def rotz(t):
     ''' Rotation about the z-axis. '''
     c = np.cos(t)
@@ -130,7 +130,7 @@ def rotz(t):
                      [s,  c,  0],
                      [0,  0,  1]])
 
-
+@jit(forceobj=True)
 def convert_3dbox_to_8corner(bbox3d_input, nuscenes_to_kitti=False):
     ''' Takes an object and a projection matrix (P) and projects the 3d
         bounding box into the image plane.
@@ -232,28 +232,10 @@ class KalmanBoxTracker(object):
                             [0,0,0,0,0,0,1,0,0,0,0]])
 
     # Initialize the covariance matrix, see covariance.py for more details
-    if covariance_id == 0: # exactly the same as AB3DMOT baseline
-      # self.kf.R[0:,0:] *= 10.   # measurement uncertainty
-      self.kf.P[7:,7:] *= 1000. #state uncertainty, give high uncertainty to the unobservable initial velocities, covariance matrix
-      self.kf.P *= 10.
-    
-      # self.kf.Q[-1,-1] *= 0.01    # process uncertainty
-      self.kf.Q[7:,7:] *= 0.01
-    elif covariance_id == 1: # for kitti car, not supported
-      covariance = Covariance(covariance_id)
-      self.kf.P = covariance.P
-      self.kf.Q = covariance.Q
-      self.kf.R = covariance.R
-    elif covariance_id == 2: # for nuscenes
-      covariance = Covariance(covariance_id)
-      self.kf.P = covariance.P[tracking_name]
-      self.kf.Q = covariance.Q[tracking_name]
-      self.kf.R = covariance.R[tracking_name]
-      if not use_angular_velocity:
+    self.kf.P, self.kf.Q, self.kf.R = covariance(covariance_id, tracking_name)
+    if not use_angular_velocity:
         self.kf.P = self.kf.P[:-1,:-1]
         self.kf.Q = self.kf.Q[:-1,:-1]
-    else:
-      assert(False)
 
     self.kf.x[:7] = bbox3D.reshape((7, 1))
 
@@ -441,8 +423,10 @@ def associate_detections_to_trackers(detections,trackers,iou_threshold=0.1,
       distance_matrix[to_max_mask] = 0
       iou_matrix[to_max_mask] = 0
     matched_indices = linear_assignment(distance_matrix)      # houngarian algorithm
+    matched_indices = np.column_stack(matched_indices)
   else:
     matched_indices = linear_assignment(distance_matrix)      # houngarian algorithm
+    matched_indices = np.column_stack(matched_indices)
 
   if print_debug:
     print('distance_matrix.shape: ', distance_matrix.shape)
@@ -539,7 +523,7 @@ class AB3DMOT(object):
     ret = []
     for t,trk in enumerate(trks):
       pos = self.trackers[t].predict().reshape((-1, 1))
-      trk[:] = [pos[0], pos[1], pos[2], pos[3], pos[4], pos[5], pos[6]]       
+      trk[:] = pos[:7].flatten()
       if(np.any(np.isnan(pos))):
         to_del.append(t)
     trks = np.ma.compress_rows(np.ma.masked_invalid(trks))   
@@ -628,9 +612,9 @@ def format_sample_result(sample_token, tracking_name, tracker):
   rotation = Quaternion(axis=[0, 0, 1], angle=tracker[6]).elements
   sample_result = {
     'sample_token': sample_token,
-    'translation': [tracker[3], tracker[4], tracker[5]],
+    'translation': tracker[3:6].tolist(),
     'size': [tracker[1], tracker[2], tracker[0]],
-    'rotation': [rotation[0], rotation[1], rotation[2], rotation[3]],
+    'rotation': [*rotation],
     'velocity': [0, 0],
     'tracking_id': str(int(tracker[7])),
     'tracking_name': tracking_name,
@@ -639,7 +623,17 @@ def format_sample_result(sample_token, tracking_name, tracker):
 
   return sample_result
 
-def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, match_algorithm, save_root, use_angular_velocity):
+def track_nuscenes(
+    data_root: str,
+    detection_file: str,
+    save_dir: str,
+    eval_set: str='val',
+    covariance_id: int=0,
+    match_distance: str='iou',
+    match_threshold: float=0.1,
+    match_algorithm: str='h',
+    use_angular_velocity: bool=False
+    ):
   '''
   submission {
     "meta": {
@@ -655,24 +649,21 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
   }
   
   '''
-  save_dir = os.path.join(save_root, data_split); mkdir_if_missing(save_dir)
-  if 'train' in data_split:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_train.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
+  if 'train' in eval_set:
     version='v1.0-trainval'
-    output_path = os.path.join(save_dir, 'results_train_probabilistic_tracking.json')
-  elif 'val' in data_split:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_val.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
+  elif 'val' in eval_set:
     version='v1.0-trainval'
-    output_path = os.path.join(save_dir, 'results_val_probabilistic_tracking.json')
-  elif 'test' in data_split:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_test.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/test'
+  elif 'mini' in eval_set:
+    version='v1.0-mini'
+  elif 'test' in eval_set:
     version='v1.0-test'
-    output_path = os.path.join(save_dir, 'results_test_probabilistic_tracking.json')
+  else:
+    version=eval_set
+    print("WARNING: Unknown subset version: '{}'".format(version))
 
   nusc = NuScenes(version=version, dataroot=data_root, verbose=True)
+  mkdir_if_missing(save_dir)
+  output_path = os.path.join(save_dir, 'probabilistic_tracking_results.json')
 
   results = {}
 
@@ -754,22 +745,35 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
 
 
 if __name__ == '__main__':
-  if len(sys.argv)!=9:
-    print("Usage: python main.py data_split(train, val, test) covariance_id(0, 1, 2) match_distance(iou or m) match_threshold match_algorithm(greedy or h) use_angular_velocity(true or false) dataset save_root")
+  #from argparse import ArgumentParser
+  
+  if len(sys.argv)!=11:
+    print("Usage: python main.py data_split(i.e. var) covariance_id(0, 1, 2) match_distance(iou or m) match_threshold match_algorithm(greedy or h) use_angular_velocity(true or false) dataset save_root")
     sys.exit(1)
 
-  data_split = sys.argv[1]
+  eval_set = sys.argv[1]
   covariance_id = int(sys.argv[2])
   match_distance = sys.argv[3]
   match_threshold = float(sys.argv[4])
   match_algorithm = sys.argv[5]
   use_angular_velocity = sys.argv[6] == 'True' or sys.argv[6] == 'true'
   dataset = sys.argv[7]
-  save_root = os.path.join('./' + sys.argv[8])
+  data_root = sys.argv[8]
+  detection_file = sys.argv[9]
+  save_root = os.path.join('./' + sys.argv[10])
 
   if dataset == 'kitti':
     print('track kitti not supported')
   elif dataset == 'nuscenes':
     print('track nuscenes')
-    track_nuscenes(data_split, covariance_id, match_distance, match_threshold, match_algorithm, save_root, use_angular_velocity)
+    track_nuscenes(
+        data_root,
+        detection_file,
+        save_root,
+        eval_set,
+        covariance_id,
+        match_distance,
+        match_threshold,
+        match_algorithm,
+        use_angular_velocity)
 

@@ -221,6 +221,8 @@ if __name__ == '__main__':
   # Settings.
   parser = argparse.ArgumentParser(description='Get nuScenes stats.',
                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+  parser.add_argument('data_root', help='Path to the nuscenes data root.')
+  parser.add_argument('detection_file', type=str, help='Path to the detection results.')
   parser.add_argument('--eval_set', type=str, default='train',
                       help='Which dataset split to evaluate on, train, val or test.')
   parser.add_argument('--config_path', type=str, default='',
@@ -230,6 +232,7 @@ if __name__ == '__main__':
                       help='Whether to print to stdout.')
   parser.add_argument('--matching_dist', type=str, default='2d_center',
                       help='Which distance function for matching, 3d_iou or 2d_center.')
+  
   args = parser.parse_args()
 
   eval_set_ = args.eval_set
@@ -242,23 +245,19 @@ if __name__ == '__main__':
   else:
     with open(config_path, 'r') as _f:
       cfg_ = DetectionConfig.deserialize(json.load(_f))
-
-  if 'train' in eval_set_:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_train.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
+  
+  if 'train' in eval_set:
     version='v1.0-trainval'
-  elif 'val' in eval_set_:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_val.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
-    version='v1.0-trainval'
-  elif 'test' in eval_set_:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_test.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/test'
+  elif 'mini' in eval_set:
+    version='v1.0-mini'
+  elif 'test' in eval_set:
     version='v1.0-test'
+  else:
+    print("WARNING: Unknown eval_set: '{}'".format(eval_set))
 
   nusc = NuScenes(version=version, dataroot=data_root, verbose=True)
 
-  pred_boxes, _ = load_prediction(detection_file, 10000, DetectionBox)
+  pred_boxes, _ = load_prediction(args.detection_file, 10000, DetectionBox)
   gt_boxes = load_gt(nusc, eval_set_, TrackingBox)
 
   assert set(pred_boxes.sample_tokens) == set(gt_boxes.sample_tokens), \
