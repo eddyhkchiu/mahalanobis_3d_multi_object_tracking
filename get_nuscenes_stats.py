@@ -244,16 +244,16 @@ if __name__ == '__main__':
       cfg_ = DetectionConfig.deserialize(json.load(_f))
 
   if 'train' in eval_set_:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_train.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
+    detection_file = '/media/cyz/Data/cadc_tracker/megvii_det/megvii_train.json'
+    data_root = '/media/cyz/Data/cadc_tracker/PCDet/data/nuscenes'
     version='v1.0-trainval'
   elif 'val' in eval_set_:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_val.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
+    detection_file = '/media/cyz/Data/cadc_tracker/megvii_det/megvii_val.json'
+    data_root = '/media/cyz/Data/cadc_tracker/PCDet/data/nuscenes'
     version='v1.0-trainval'
   elif 'test' in eval_set_:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_test.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/test'
+    detection_file = '/media/cyz/Data/cadc_tracker/megvii_det/megvii_test.json'
+    data_root = ''
     version='v1.0-test'
 
   nusc = NuScenes(version=version, dataroot=data_root, verbose=True)

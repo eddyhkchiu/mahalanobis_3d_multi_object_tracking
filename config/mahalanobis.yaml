@@ -1,0 +1,25 @@
+
+DATASET:
+  NAME: NuScenes 
+  VERSION: 'v1.0-trainval'
+  DATA_ROOT: '/media/cyz/Data/cadc_tracker/PCDet/data/nuscenes'
+  DETECTION_FILE: '/media/cyz/Data/cadc_tracker/megvii_det/megvii_train.json'
+  DATA_SPLIT: 'val' 
+
+TRACKER:
+  COVARIANCE: 'NuScenesCovariance'   # see covariance.py
+  MATCH_DISTANCE: 'm'       # iou or m
+  MATCH_THRESHOLD: 11        #
+  MATCH_ALGORITHM: 'greedy_match'        # greedy or h
+  SCORE_METRIC: 'mahalanobis_metric'
+  USE_ANGULAR_VELOCITY: False #
+  CLASSES: [
+    'bicycle',
+    'bus',
+    'car',
+    'motorcycle',
+    'pedestrian',
+    'trailer',
+    'truck'
+  ]
+  

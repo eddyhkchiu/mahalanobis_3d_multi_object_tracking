@@ -1,189 +1,36 @@
 # We implemented our method on top of AB3DMOT's KITTI tracking open-source code
 
 from __future__ import print_function
+
 import os.path, copy, numpy as np, time, sys
-from numba import jit
+import json
+
 from sklearn.utils.linear_assignment_ import linear_assignment
 from filterpy.kalman import KalmanFilter
-from utils import load_list_from_folder, fileparts, mkdir_if_missing
-from scipy.spatial import ConvexHull
-from covariance import Covariance
-import json
+from pyquaternion import Quaternion
+from tqdm import tqdm
+
 from nuscenes import NuScenes
 from nuscenes.eval.common.data_classes import EvalBoxes
 from nuscenes.eval.tracking.data_classes import TrackingBox 
 from nuscenes.eval.detection.data_classes import DetectionBox 
-from pyquaternion import Quaternion
-from tqdm import tqdm
 
-@jit    
-def poly_area(x,y):
-    return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
-
-@jit        
-def box3d_vol(corners):
-    ''' corners: (8,3) no assumption on axis direction '''
-    a = np.sqrt(np.sum((corners[0,:] - corners[1,:])**2))
-    b = np.sqrt(np.sum((corners[1,:] - corners[2,:])**2))
-    c = np.sqrt(np.sum((corners[0,:] - corners[4,:])**2))
-    return a*b*c
-
-@jit       
-def convex_hull_intersection(p1, p2):
-    """ Compute area of two convex hull's intersection area.
-        p1,p2 are a list of (x,y) tuples of hull vertices.
-        return a list of (x,y) for the intersection and its volume
-    """
-    inter_p = polygon_clip(p1,p2)
-    if inter_p is not None:
-        hull_inter = ConvexHull(inter_p)
-        return inter_p, hull_inter.volume
-    else:
-        return None, 0.0  
-
-def polygon_clip(subjectPolygon, clipPolygon):
-   """ Clip a polygon with another polygon.
-   Args:
-     subjectPolygon: a list of (x,y) 2d points, any polygon.
-     clipPolygon: a list of (x,y) 2d points, has to be *convex*
-   Note:
-     **points have to be counter-clockwise ordered**
-
-   Return:
-     a list of (x,y) vertex point for the intersection polygon.
-   """
-   def inside(p):
-      return(cp2[0]-cp1[0])*(p[1]-cp1[1]) > (cp2[1]-cp1[1])*(p[0]-cp1[0])
- 
-   def computeIntersection():
-      dc = [ cp1[0] - cp2[0], cp1[1] - cp2[1] ]
-      dp = [ s[0] - e[0], s[1] - e[1] ]
-      n1 = cp1[0] * cp2[1] - cp1[1] * cp2[0]
-      n2 = s[0] * e[1] - s[1] * e[0] 
-      n3 = 1.0 / (dc[0] * dp[1] - dc[1] * dp[0])
-      return [(n1*dp[0] - n2*dc[0]) * n3, (n1*dp[1] - n2*dc[1]) * n3]
- 
-   outputList = subjectPolygon
-   cp1 = clipPolygon[-1]
- 
-   for clipVertex in clipPolygon:
-      cp2 = clipVertex
-      inputList = outputList
-      outputList = []
-      s = inputList[-1]
- 
-      for subjectVertex in inputList:
-         e = subjectVertex
-         if inside(e):
-            if not inside(s):
-               outputList.append(computeIntersection())
-            outputList.append(e)
-         elif inside(s):
-            outputList.append(computeIntersection())
-         s = e
-      cp1 = cp2
-      if len(outputList) == 0:
-          return None
-   return(outputList)
-
-def iou3d(corners1, corners2):
-    ''' Compute 3D bounding box IoU.
-
-    Input:
-        corners1: numpy array (8,3), assume up direction is negative Y
-        corners2: numpy array (8,3), assume up direction is negative Y
-    Output:
-        iou: 3D bounding box IoU
-        iou_2d: bird's eye view 2D bounding box IoU
-
-    '''
-    # corner points are in counter clockwise order
-    rect1 = [(corners1[i,0], corners1[i,2]) for i in range(3,-1,-1)]
-    rect2 = [(corners2[i,0], corners2[i,2]) for i in range(3,-1,-1)] 
-    area1 = poly_area(np.array(rect1)[:,0], np.array(rect1)[:,1])
-    area2 = poly_area(np.array(rect2)[:,0], np.array(rect2)[:,1])
-    inter, inter_area = convex_hull_intersection(rect1, rect2)
-    iou_2d = inter_area/(area1+area2-inter_area)
-    ymax = min(corners1[0,1], corners2[0,1])
-    ymin = max(corners1[4,1], corners2[4,1])
-    inter_vol = inter_area * max(0.0, ymax-ymin)
-    vol1 = box3d_vol(corners1)
-    vol2 = box3d_vol(corners2)
-    iou = inter_vol / (vol1 + vol2 - inter_vol)
-    return iou, iou_2d
-
-@jit       
-def roty(t):
-    ''' Rotation about the y-axis. '''
-    c = np.cos(t)
-    s = np.sin(t)
-    return np.array([[c,  0,  s],
-                     [0,  1,  0],
-                     [-s, 0,  c]])
-
-@jit       
-def rotz(t):
-    ''' Rotation about the z-axis. '''
-    c = np.cos(t)
-    s = np.sin(t)
-    return np.array([[c, -s,  0],
-                     [s,  c,  0],
-                     [0,  0,  1]])
-
-
-def convert_3dbox_to_8corner(bbox3d_input, nuscenes_to_kitti=False):
-    ''' Takes an object and a projection matrix (P) and projects the 3d
-        bounding box into the image plane.
-        Returns:
-            corners_2d: (8,2) array in left image coord.
-            corners_3d: (8,3) array in in rect camera coord.
-        Note: the output of this function will be passed to the funciton iou3d
-            for calculating the 3D-IOU. But the function iou3d was written for 
-            kitti, so the caller needs to set nuscenes_to_kitti to True if 
-            the input bbox3d_input is in nuscenes format.
-    '''
-    # compute rotational matrix around yaw axis
-    bbox3d = copy.copy(bbox3d_input)
-
-    if nuscenes_to_kitti:
-      # transform to kitti format first
-      bbox3d_nuscenes = copy.copy(bbox3d)
-      # kitti:    [x,  y,  z,  a, l, w, h]
-      # nuscenes: [y, -z, -x, -a, w, l, h]
-      bbox3d[0] =  bbox3d_nuscenes[1]
-      bbox3d[1] = -bbox3d_nuscenes[2]
-      bbox3d[2] = -bbox3d_nuscenes[0]
-      bbox3d[3] = -bbox3d_nuscenes[3]
-      bbox3d[4] =  bbox3d_nuscenes[5]
-      bbox3d[5] =  bbox3d_nuscenes[4]
-   
-
-    R = roty(bbox3d[3])    
-
-    # 3d bounding box dimensions
-    l = bbox3d[4]
-    w = bbox3d[5]
-    h = bbox3d[6]
-    
-    # 3d bounding box corners
-    x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2];
-    y_corners = [0,0,0,0,-h,-h,-h,-h];
-    z_corners = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2];
-    
-    # rotate and translate 3d bounding box
-    corners_3d = np.dot(R, np.vstack([x_corners,y_corners,z_corners]))
-    corners_3d[0,:] = corners_3d[0,:] + bbox3d[0]
-    corners_3d[1,:] = corners_3d[1,:] + bbox3d[1]
-    corners_3d[2,:] = corners_3d[2,:] + bbox3d[2]
- 
-    return np.transpose(corners_3d)
+from utils.generic_utils import load_list_from_folder, fileparts, mkdir_if_missing
+from utils.geometry_utils import poly_area, box3d_vol, convex_hull_intersection, polygon_clip, \
+        iou3d, roty, rotz, convert_3dbox_to_8corner, angle_in_range, diff_orientation_correction
+from utils.config import cfg, cfg_from_yaml_file, log_config_to_file
+import covariance
+import algorithms
 
 class KalmanBoxTracker(object):
   """
   This class represents the internel state of individual tracked objects observed as bbox.
   """
   count = 0
-  def __init__(self, bbox3D, info, covariance_id=0, track_score=None, tracking_name='car', use_angular_velocity=False):
+  def __init__(self, bbox3D, info, 
+                track_score=None, 
+                tracking_name='car', 
+                use_angular_velocity=False):
     """
     Initialises a tracker using initial bounding box.
     """
@@ -232,28 +79,10 @@ class KalmanBoxTracker(object):
                             [0,0,0,0,0,0,1,0,0,0,0]])
 
     # Initialize the covariance matrix, see covariance.py for more details
-    if covariance_id == 0: # exactly the same as AB3DMOT baseline
-      # self.kf.R[0:,0:] *= 10.   # measurement uncertainty
-      self.kf.P[7:,7:] *= 1000. #state uncertainty, give high uncertainty to the unobservable initial velocities, covariance matrix
-      self.kf.P *= 10.
-    
-      # self.kf.Q[-1,-1] *= 0.01    # process uncertainty
-      self.kf.Q[7:,7:] *= 0.01
-    elif covariance_id == 1: # for kitti car, not supported
-      covariance = Covariance(covariance_id)
-      self.kf.P = covariance.P
-      self.kf.Q = covariance.Q
-      self.kf.R = covariance.R
-    elif covariance_id == 2: # for nuscenes
-      covariance = Covariance(covariance_id)
-      self.kf.P = covariance.P[tracking_name]
-      self.kf.Q = covariance.Q[tracking_name]
-      self.kf.R = covariance.R[tracking_name]
-      if not use_angular_velocity:
-        self.kf.P = self.kf.P[:-1,:-1]
-        self.kf.Q = self.kf.Q[:-1,:-1]
-    else:
-      assert(False)
+    cov = getattr(covariance, cfg.TRACKER.COVARIANCE)(tracking_name=tracking_name)
+    self.kf.P = cov.P
+    self.kf.Q = cov.Q
+    self.kf.R = cov.R
 
     self.kf.x[:7] = bbox3D.reshape((7, 1))
 
@@ -332,163 +161,8 @@ class KalmanBoxTracker(object):
     """
     return self.kf.x[:7].reshape((7, ))
 
-def angle_in_range(angle):
-  '''
-  Input angle: -2pi ~ 2pi
-  Output angle: -pi ~ pi
-  '''
-  if angle > np.pi:
-    angle -= 2 * np.pi
-  if angle < -np.pi:
-    angle += 2 * np.pi
-  return angle
-
-def diff_orientation_correction(det, trk):
-  '''
-  return the angle diff = det - trk
-  if angle diff > 90 or < -90, rotate trk and update the angle diff
-  '''
-  diff = det - trk
-  diff = angle_in_range(diff)
-  if diff > np.pi / 2:
-    diff -= np.pi
-  if diff < -np.pi / 2:
-    diff += np.pi
-  diff = angle_in_range(diff)
-  return diff
-
-def greedy_match(distance_matrix):
-  '''
-  Find the one-to-one matching using greedy allgorithm choosing small distance
-  distance_matrix: (num_detections, num_tracks)
-  '''
-  matched_indices = []
-
-  num_detections, num_tracks = distance_matrix.shape
-  distance_1d = distance_matrix.reshape(-1)
-  index_1d = np.argsort(distance_1d)
-  index_2d = np.stack([index_1d // num_tracks, index_1d % num_tracks], axis=1)
-  detection_id_matches_to_tracking_id = [-1] * num_detections
-  tracking_id_matches_to_detection_id = [-1] * num_tracks
-  for sort_i in range(index_2d.shape[0]):
-    detection_id = int(index_2d[sort_i][0])
-    tracking_id = int(index_2d[sort_i][1])
-    if tracking_id_matches_to_detection_id[tracking_id] == -1 and detection_id_matches_to_tracking_id[detection_id] == -1:
-      tracking_id_matches_to_detection_id[tracking_id] = detection_id
-      detection_id_matches_to_tracking_id[detection_id] = tracking_id
-      matched_indices.append([detection_id, tracking_id])
-
-  matched_indices = np.array(matched_indices)
-  return matched_indices
- 
-
-def associate_detections_to_trackers(detections,trackers,iou_threshold=0.1, 
-  use_mahalanobis=False, dets=None, trks=None, trks_S=None, mahalanobis_threshold=0.1, print_debug=False, match_algorithm='greedy'):
-  """
-  Assigns detections to tracked object (both represented as bounding boxes)
-
-  detections:  N x 8 x 3
-  trackers:    M x 8 x 3
-
-  dets: N x 7
-  trks: M x 7
-  trks_S: N x 7 x 7
-
-  Returns 3 lists of matches, unmatched_detections and unmatched_trackers
-  """
-  if(len(trackers)==0):
-    return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,8,3),dtype=int)    
-  iou_matrix = np.zeros((len(detections),len(trackers)),dtype=np.float32)
-  distance_matrix = np.zeros((len(detections),len(trackers)),dtype=np.float32)
-
-  if use_mahalanobis:
-    assert(dets is not None)
-    assert(trks is not None)
-    assert(trks_S is not None)
-
-  if use_mahalanobis and print_debug:
-    print('dets.shape: ', dets.shape)
-    print('dets: ', dets)
-    print('trks.shape: ', trks.shape)
-    print('trks: ', trks)
-    print('trks_S.shape: ', trks_S.shape)
-    print('trks_S: ', trks_S)
-    S_inv = [np.linalg.inv(S_tmp) for S_tmp in trks_S]  # 7 x 7
-    S_inv_diag = [S_inv_tmp.diagonal() for S_inv_tmp in S_inv]# 7
-    print('S_inv_diag: ', S_inv_diag)
-
-  for d,det in enumerate(detections):
-    for t,trk in enumerate(trackers):
-      if use_mahalanobis:
-        S_inv = np.linalg.inv(trks_S[t]) # 7 x 7
-        diff = np.expand_dims(dets[d] - trks[t], axis=1) # 7 x 1
-        # manual reversed angle by 180 when diff > 90 or < -90 degree
-        corrected_angle_diff = diff_orientation_correction(dets[d][3], trks[t][3])
-        diff[3] = corrected_angle_diff
-        distance_matrix[d, t] = np.sqrt(np.matmul(np.matmul(diff.T, S_inv), diff)[0][0])
-      else:
-        iou_matrix[d,t] = iou3d(det,trk)[0]             # det: 8 x 3, trk: 8 x 3
-        distance_matrix = -iou_matrix
-
-  if match_algorithm == 'greedy':
-    matched_indices = greedy_match(distance_matrix)
-  elif match_algorithm == 'pre_threshold':
-    if use_mahalanobis:
-      to_max_mask = distance_matrix > mahalanobis_threshold
-      distance_matrix[to_max_mask] = mahalanobis_threshold + 1
-    else:
-      to_max_mask = iou_matrix < iou_threshold
-      distance_matrix[to_max_mask] = 0
-      iou_matrix[to_max_mask] = 0
-    matched_indices = linear_assignment(distance_matrix)      # houngarian algorithm
-  else:
-    matched_indices = linear_assignment(distance_matrix)      # houngarian algorithm
-
-  if print_debug:
-    print('distance_matrix.shape: ', distance_matrix.shape)
-    print('distance_matrix: ', distance_matrix)
-    print('matched_indices: ', matched_indices)
-
-  unmatched_detections = []
-  for d,det in enumerate(detections):
-    if(d not in matched_indices[:,0]):
-      unmatched_detections.append(d)
-  unmatched_trackers = []
-  for t,trk in enumerate(trackers):
-    if len(matched_indices) == 0 or (t not in matched_indices[:,1]):
-      unmatched_trackers.append(t)
-
-  #filter out matched with low IOU
-  matches = []
-  for m in matched_indices:
-    match = True
-    if use_mahalanobis:
-      if distance_matrix[m[0],m[1]] > mahalanobis_threshold:
-        match = False
-    else:
-      if(iou_matrix[m[0],m[1]]<iou_threshold):
-        match = False
-    if not match:
-      unmatched_detections.append(m[0])
-      unmatched_trackers.append(m[1])
-    else:
-      matches.append(m.reshape(1,2))
-  if(len(matches)==0):
-    matches = np.empty((0,2),dtype=int)
-  else:
-    matches = np.concatenate(matches,axis=0)
-
-  if print_debug:
-    print('matches: ', matches)
-    print('unmatched_detections: ', unmatched_detections)
-    print('unmatched_trackers: ', unmatched_trackers)
-
-  return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
-
-
-
 class AB3DMOT(object):
-  def __init__(self,covariance_id=0, max_age=2,min_hits=3, tracking_name='car', use_angular_velocity=False, tracking_nuscenes=False):
+  def __init__(self, max_age=2, min_hits=3, tracking_name='car'):
     """              
     observation: 
       before reorder: [h, w, l, x, y, z, rot_y]
@@ -502,12 +176,14 @@ class AB3DMOT(object):
     self.frame_count = 0
     self.reorder = [3, 4, 5, 6, 2, 1, 0]
     self.reorder_back = [6, 5, 4, 0, 1, 2, 3]
-    self.covariance_id = covariance_id
     self.tracking_name = tracking_name
-    self.use_angular_velocity = use_angular_velocity
-    self.tracking_nuscenes = tracking_nuscenes
+    self.use_angular_velocity = cfg.TRACKER.USE_ANGULAR_VELOCITY
+    # Replace with dependency injection 
+    self.match_threshold = cfg.TRACKER.MATCH_THRESHOLD
+    self.score_metric_fn = getattr(algorithms,cfg.TRACKER.SCORE_METRIC)
+    self.match_algorithm_fn = getattr(algorithms,cfg.TRACKER.MATCH_ALGORITHM)
 
-  def update(self,dets_all, match_distance, match_threshold, match_algorithm, seq_name):
+  def update(self, dets_all, print_debug = False):
     """
     Params:
       dets_all: dict
@@ -523,13 +199,8 @@ class AB3DMOT(object):
     #print('info.shape: ', info.shape)
     dets = dets[:, self.reorder]
 
-
     self.frame_count += 1
 
-    print_debug = False
-    if False and seq_name == '2f56eb47c64f43df8902d9f88aa8a019' and self.frame_count >= 25 and self.frame_count <= 30:
-      print_debug = True
-      print('self.frame_count: ', self.frame_count)
     if print_debug:
       for trk_tmp in self.trackers:
         print('trk_tmp.id: ', trk_tmp.id)
@@ -549,21 +220,12 @@ class AB3DMOT(object):
     if print_debug:
       for trk_tmp in self.trackers:
         print('trk_tmp.id: ', trk_tmp.id)
-
-    dets_8corner = [convert_3dbox_to_8corner(det_tmp, match_distance == 'iou' and self.tracking_nuscenes) for det_tmp in dets]
-    if len(dets_8corner) > 0: dets_8corner = np.stack(dets_8corner, axis=0)
-    else: dets_8corner = []
-
-    trks_8corner = [convert_3dbox_to_8corner(trk_tmp, match_distance == 'iou' and self.tracking_nuscenes) for trk_tmp in trks]
-    trks_S = [np.matmul(np.matmul(tracker.kf.H, tracker.kf.P), tracker.kf.H.T) + tracker.kf.R for tracker in self.trackers]
-
-    if len(trks_8corner) > 0: 
-      trks_8corner = np.stack(trks_8corner, axis=0)
-      trks_S = np.stack(trks_S, axis=0)
-    if match_distance == 'iou':
-      matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(dets_8corner, trks_8corner, iou_threshold=match_threshold, print_debug=print_debug, match_algorithm=match_algorithm)
-    else:
-      matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(dets_8corner, trks_8corner, use_mahalanobis=True, dets=dets, trks=trks, trks_S=trks_S, mahalanobis_threshold=match_threshold, print_debug=print_debug, match_algorithm=match_algorithm)
+    
+    trks_S = []
+    if cfg.TRACKER.SCORE_METRIC == 'mahalanobis_metric':
+      trks_S = np.array([np.matmul(np.matmul(tracker.kf.H, tracker.kf.P), tracker.kf.H.T) + tracker.kf.R for tracker in self.trackers])
+        
+    matched, unmatched_dets, unmatched_trks = self.associate_detections_to_trackers(dets, trks, print_debug=print_debug, trks_S=trks_S)
    
     #update matched trackers with assigned detections
     for t,trk in enumerate(self.trackers):
@@ -577,7 +239,7 @@ class AB3DMOT(object):
     for i in unmatched_dets:        # a scalar of index
         detection_score = info[i][-1]
         track_score = detection_score
-        trk = KalmanBoxTracker(dets[i,:], info[i, :], self.covariance_id, track_score, self.tracking_name, use_angular_velocity) 
+        trk = KalmanBoxTracker(dets[i,:], info[i, :], track_score, self.tracking_name, self.use_angular_velocity) 
         self.trackers.append(trk)
     i = len(self.trackers)
     for trk in reversed(self.trackers):
@@ -593,18 +255,77 @@ class AB3DMOT(object):
     if(len(ret)>0):
       return np.concatenate(ret)      # x, y, z, theta, l, w, h, ID, other info, confidence
     return np.empty((0,15 + 7))      
+
+  def associate_detections_to_trackers(self, detections, trackers, print_debug=False, **kwargs):
+    """
+    Assigns detections to tracked object (both represented as bounding boxes)
+
+    detections:  N x 7 
+    trackers:    M x 8
+    kwargs: {
+      trks_S: N x 7 x 
+      ...
+    }
     
+    Returns 3 lists of matches [M, 2], unmatched_detections [?] and unmatched_trackers [?]
+    """
+    
+    use_mahalanobis = cfg.TRACKER.SCORE_METRIC == 'mahalanobis_metric'
+    
+    if(len(trackers)==0):
+      return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,8,3),dtype=int)    
+    # score matrix between detections and trackers. Lower is better. Either Mahalonobis distance or - IOU
+    score_matrix = np.zeros((len(detections),len(trackers)),dtype=np.float32)
 
+    if use_mahalanobis and print_debug:
+      print('dets.shape: ', detections.shape)
+      print('dets: ', detections)
+      print('trks.shape: ', trackers.shape)
+      print('trks: ', trackers)
+      trks_S = kwargs['trks_S']
+      print('trks_S.shape: ', trks_S.shape)
+      print('trks_S: ', trks_S)
+      S_inv = [np.linalg.inv(S_tmp) for S_tmp in trks_S]  # 7 x 7
+      S_inv_diag = [S_inv_tmp.diagonal() for S_inv_tmp in S_inv]# 7
+      print('S_inv_diag: ', S_inv_diag)
 
-NUSCENES_TRACKING_NAMES = [
-  'bicycle',
-  'bus',
-  'car',
-  'motorcycle',
-  'pedestrian',
-  'trailer',
-  'truck'
-]
+    score_matrix = self.score_metric_fn(detections, trackers, **kwargs)
+    matched_indices = self.match_algorithm_fn(score_matrix)
+
+    if print_debug:
+      print('score_matrix.shape: ', score_matrix.shape)
+      print('score_matrix: ', score_matrix)
+      print('matched_indices: ', matched_indices)
+
+    unmatched_detections = []
+    for d,det in enumerate(detections):
+      if(d not in matched_indices[:,0]):
+        unmatched_detections.append(d)
+    unmatched_trackers = []
+    for t,trk in enumerate(trackers):
+      if len(matched_indices) == 0 or (t not in matched_indices[:,1]):
+        unmatched_trackers.append(t)
+
+    #filter out matched with high score (bad)
+    matches = []
+    for m in matched_indices:
+      match = score_matrix[m[0],m[1]] < self.match_threshold
+      if not match:
+        unmatched_detections.append(m[0])
+        unmatched_trackers.append(m[1])
+      else:
+        matches.append(m.reshape(1,2))
+    if(len(matches)==0):
+      matches = np.empty((0,2),dtype=int)
+    else:
+      matches = np.concatenate(matches,axis=0)
+
+    if print_debug:
+      print('matches: ', matches)
+      print('unmatched_detections: ', unmatched_detections)
+      print('unmatched_trackers: ', unmatched_trackers)
+
+    return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
 
 def format_sample_result(sample_token, tracking_name, tracker):
   '''
@@ -639,7 +360,7 @@ def format_sample_result(sample_token, tracking_name, tracker):
 
   return sample_result
 
-def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, match_algorithm, save_root, use_angular_velocity):
+def track_nuscenes(save_root):
   '''
   submission {
     "meta": {
@@ -655,31 +376,17 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
   }
   
   '''
-  save_dir = os.path.join(save_root, data_split); mkdir_if_missing(save_dir)
-  if 'train' in data_split:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_train.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
-    version='v1.0-trainval'
-    output_path = os.path.join(save_dir, 'results_train_probabilistic_tracking.json')
-  elif 'val' in data_split:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_val.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
-    version='v1.0-trainval'
-    output_path = os.path.join(save_dir, 'results_val_probabilistic_tracking.json')
-  elif 'test' in data_split:
-    detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_test.json'
-    data_root = '/juno/u/hkchiu/dataset/nuscenes/test'
-    version='v1.0-test'
-    output_path = os.path.join(save_dir, 'results_test_probabilistic_tracking.json')
+  save_dir = os.path.join(save_root, cfg.DATASET.DATA_SPLIT); mkdir_if_missing(save_dir)
+  output_path = os.path.join(save_dir, 'results_' + cfg.DATASET.DATA_SPLIT + '_probabilistic_tracking.json')
 
-  nusc = NuScenes(version=version, dataroot=data_root, verbose=True)
+  nusc = NuScenes(version=cfg.DATASET.VERSION, dataroot=cfg.DATASET.DATA_ROOT, verbose=True)
 
   results = {}
 
   total_time = 0.0
   total_frames = 0
 
-  with open(detection_file) as f:
+  with open(cfg.DATASET.DETECTION_FILE) as f:
     data = json.load(f)
   assert 'results' in data, 'Error: No field `results` in result file. Please note that the result format changed.' \
     'See https://www.nuscenes.org/object-detection for more information.'
@@ -688,7 +395,7 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
   meta = data['meta']
   print('meta: ', meta)
   print("Loaded results from {}. Found detections for {} samples."
-    .format(detection_file, len(all_results.sample_tokens)))
+    .format(cfg.DATASET.DETECTION_FILE, len(all_results.sample_tokens)))
 
   processed_scene_tokens = set()
   for sample_token_idx in tqdm(range(len(all_results.sample_tokens))):
@@ -699,14 +406,14 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
     first_sample_token = nusc.get('scene', scene_token)['first_sample_token']
     current_sample_token = first_sample_token
 
-    mot_trackers = {tracking_name: AB3DMOT(covariance_id, tracking_name=tracking_name, use_angular_velocity=use_angular_velocity, tracking_nuscenes=True) for tracking_name in NUSCENES_TRACKING_NAMES}
+    mot_trackers = {tracking_name: AB3DMOT(tracking_name=tracking_name) for tracking_name in cfg.TRACKER.CLASSES}
 
     while current_sample_token != '':
       results[current_sample_token] = []
-      dets = {tracking_name: [] for tracking_name in NUSCENES_TRACKING_NAMES}
-      info = {tracking_name: [] for tracking_name in NUSCENES_TRACKING_NAMES}
+      dets = {tracking_name: [] for tracking_name in cfg.TRACKER.CLASSES}
+      info = {tracking_name: [] for tracking_name in cfg.TRACKER.CLASSES}
       for box in all_results.boxes[current_sample_token]:
-        if box.detection_name not in NUSCENES_TRACKING_NAMES:
+        if box.detection_name not in cfg.TRACKER.CLASSES:
           continue
         q = Quaternion(box.rotation)
         angle = q.angle if q.axis[2] > 0 else -q.angle
@@ -723,13 +430,13 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
         info[box.detection_name].append(information)
         
       dets_all = {tracking_name: {'dets': np.array(dets[tracking_name]), 'info': np.array(info[tracking_name])}
-        for tracking_name in NUSCENES_TRACKING_NAMES}
+        for tracking_name in cfg.TRACKER.CLASSES}
 
       total_frames += 1
       start_time = time.time()
-      for tracking_name in NUSCENES_TRACKING_NAMES:
+      for tracking_name in cfg.TRACKER.CLASSES:
         if dets_all[tracking_name]['dets'].shape[0] > 0:
-          trackers = mot_trackers[tracking_name].update(dets_all[tracking_name], match_distance, match_threshold, match_algorithm, scene_token)
+          trackers = mot_trackers[tracking_name].update(dets_all[tracking_name])
           # (N, 9)
           # (h, w, l, x, y, z, rot_y), tracking_id, tracking_score 
           # print('trackers: ', trackers)
@@ -754,22 +461,13 @@ def track_nuscenes(data_split, covariance_id, match_distance, match_threshold, m
 
 
 if __name__ == '__main__':
-  if len(sys.argv)!=9:
-    print("Usage: python main.py data_split(train, val, test) covariance_id(0, 1, 2) match_distance(iou or m) match_threshold match_algorithm(greedy or h) use_angular_velocity(true or false) dataset save_root")
+  if len(sys.argv)!=3:
+    print("Usage: python main.py cfg_file save_root")
     sys.exit(1)
-
-  data_split = sys.argv[1]
-  covariance_id = int(sys.argv[2])
-  match_distance = sys.argv[3]
-  match_threshold = float(sys.argv[4])
-  match_algorithm = sys.argv[5]
-  use_angular_velocity = sys.argv[6] == 'True' or sys.argv[6] == 'true'
-  dataset = sys.argv[7]
-  save_root = os.path.join('./' + sys.argv[8])
-
-  if dataset == 'kitti':
-    print('track kitti not supported')
-  elif dataset == 'nuscenes':
-    print('track nuscenes')
-    track_nuscenes(data_split, covariance_id, match_distance, match_threshold, match_algorithm, save_root, use_angular_velocity)
+  
+  cfg_file = sys.argv[1]
+  save_root = sys.argv[2]
+  cfg_from_yaml_file(cfg_file, cfg)
+  
+  track_nuscenes(save_root)
 
