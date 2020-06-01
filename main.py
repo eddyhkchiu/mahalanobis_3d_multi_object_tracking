@@ -213,7 +213,7 @@ class AB3DMOT(object):
       trk[:] = [pos[0], pos[1], pos[2], pos[3], pos[4], pos[5], pos[6]]       
       if(np.any(np.isnan(pos))):
         to_del.append(t)
-    trks = np.ma.compress_rows(np.ma.masked_invalid(trks))   
+    trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
     for t in reversed(to_del):
       self.trackers.pop(t)
 
@@ -376,7 +376,7 @@ def track_nuscenes(save_root):
   }
   
   '''
-  save_dir = os.path.join(save_root, cfg.DATASET.DATA_SPLIT); mkdir_if_missing(save_dir)
+  save_dir = os.path.join(save_root, os.path.splitext(os.path.basename(cfg.DATASET.DETECTION_FILE))[0]); mkdir_if_missing(save_dir)
   output_path = os.path.join(save_dir, 'results_' + cfg.DATASET.DATA_SPLIT + '_probabilistic_tracking.json')
 
   nusc = NuScenes(version=cfg.DATASET.VERSION, dataroot=cfg.DATASET.DATA_ROOT, verbose=True)
@@ -438,7 +438,7 @@ def track_nuscenes(save_root):
         if dets_all[tracking_name]['dets'].shape[0] > 0:
           trackers = mot_trackers[tracking_name].update(dets_all[tracking_name])
           # (N, 9)
-          # (h, w, l, x, y, z, rot_y), tracking_id, tracking_score 
+          # (h, w, l, x, y, z, rot_y), trsacking_id, tracking_score 
           # print('trackers: ', trackers)
           for i in range(trackers.shape[0]):
             sample_result = format_sample_result(current_sample_token, tracking_name, trackers[i])
@@ -455,7 +455,7 @@ def track_nuscenes(save_root):
   # finished tracking all scenes, write output data
   output_data = {'meta': meta, 'results': results}
   with open(output_path, 'w') as outfile:
-    json.dump(output_data, outfile)
+    json.dump(output_data, outfile, indent=2)
 
   print("Total Tracking took: %.3f for %d frames or %.1f FPS"%(total_time,total_frames,total_frames/total_time))
 
@@ -466,8 +466,7 @@ if __name__ == '__main__':
     sys.exit(1)
   
   cfg_file = sys.argv[1]
-  save_root = sys.argv[2]
+  save_root = os.path.join(sys.argv[2], os.path.splitext(os.path.basename(cfg_file))[0])
   cfg_from_yaml_file(cfg_file, cfg)
   
   track_nuscenes(save_root)
-

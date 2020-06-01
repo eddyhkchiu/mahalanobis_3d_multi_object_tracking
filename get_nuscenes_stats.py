@@ -2,7 +2,7 @@ import os
 import sys
 
 import numpy as np
-from main import iou3d, convert_3dbox_to_8corner
+from utils.geometry_utils import iou3d, convert_3dbox_to_8corner
 from sklearn.utils.linear_assignment_ import linear_assignment
 
 from nuscenes import NuScenes

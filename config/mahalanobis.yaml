@@ -3,7 +3,7 @@ DATASET:
   NAME: NuScenes 
   VERSION: 'v1.0-trainval'
   DATA_ROOT: '/media/cyz/Data/cadc_tracker/PCDet/data/nuscenes'
-  DETECTION_FILE: '/media/cyz/Data/cadc_tracker/megvii_det/megvii_train.json'
+  DETECTION_FILE: '/media/cyz/Data/cadc_tracker/megvii_det/megvii_val.json'
   DATA_SPLIT: 'val' 
 
 TRACKER:
