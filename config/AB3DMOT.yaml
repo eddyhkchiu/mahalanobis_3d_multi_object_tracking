@@ -8,11 +8,10 @@ DATASET:
 
 TRACKER:
   COVARIANCE: 'BaselineCovariance'                # see covariance.py
-  MATCH_DISTANCE: 'iou'                           # iou or m
   MATCH_THRESHOLD: -0.1                           # -1 * Minimum IOU threshold 
   MATCH_ALGORITHM: 'hungarian_match'              # see algorithms.py
   SCORE_METRIC: 'iou_metric'
-  USE_ANGULAR_VELOCITY: False #
+  USE_ANGULAR_VELOCITY: False
   CLASSES: [
     'bicycle',
     'bus',

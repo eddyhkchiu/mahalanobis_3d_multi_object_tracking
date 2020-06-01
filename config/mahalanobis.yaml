@@ -7,12 +7,11 @@ DATASET:
   DATA_SPLIT: 'val' 
 
 TRACKER:
-  COVARIANCE: 'NuScenesCovariance'   # see covariance.py
-  MATCH_DISTANCE: 'm'       # iou or m
-  MATCH_THRESHOLD: 11        #
-  MATCH_ALGORITHM: 'greedy_match'        # greedy or h
+  COVARIANCE: 'NuScenesCovariance'       # see covariance.py
+  MATCH_THRESHOLD: 11                    # minimum mahalanobis distance
+  MATCH_ALGORITHM: 'greedy_match'        # see algorithms.py
   SCORE_METRIC: 'mahalanobis_metric'
-  USE_ANGULAR_VELOCITY: False #
+  USE_ANGULAR_VELOCITY: True
   CLASSES: [
     'bicycle',
     'bus',
