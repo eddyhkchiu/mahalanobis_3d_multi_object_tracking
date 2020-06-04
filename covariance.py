@@ -1,5 +1,5 @@
 import numpy as np
-from utils.config import cfg
+from .utils.config import cfg
 
 class BaselineCovariance(object):
   '''

@@ -15,12 +15,11 @@ from nuscenes.eval.common.data_classes import EvalBoxes
 from nuscenes.eval.tracking.data_classes import TrackingBox 
 from nuscenes.eval.detection.data_classes import DetectionBox 
 
-from utils.generic_utils import load_list_from_folder, fileparts, mkdir_if_missing
-from utils.geometry_utils import poly_area, box3d_vol, convex_hull_intersection, polygon_clip, \
+from .utils.generic_utils import load_list_from_folder, fileparts, mkdir_if_missing
+from .utils.geometry_utils import poly_area, box3d_vol, convex_hull_intersection, polygon_clip, \
         iou3d, roty, rotz, convert_3dbox_to_8corner, angle_in_range, diff_orientation_correction
-from utils.config import cfg, cfg_from_yaml_file, log_config_to_file
-import covariance
-import algorithms
+from .utils.config import cfg, cfg_from_yaml_file, log_config_to_file
+from . import algorithms, covariance
 
 class KalmanBoxTracker(object):
   """
