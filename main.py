@@ -57,6 +57,7 @@ class KalmanBoxTracker(object):
                             [0,0,0,0,0,0,1,0,0,0]])
     else:
       # with angular velocity
+      # [x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot, rot_y_dot]
       self.kf = KalmanFilter(dim_x=11, dim_z=7)       
       self.kf.F = np.array([[1,0,0,0,0,0,0,1,0,0,0],      # state transition matrix
                             [0,1,0,0,0,0,0,0,1,0,0],
@@ -105,7 +106,6 @@ class KalmanBoxTracker(object):
     Updates the state vector with observed bbox.
     """
     self.time_since_update = 0
-    self.history = []
     self.hits += 1
     self.hit_streak += 1          # number of continuing hit
     if self.still_first:
@@ -159,23 +159,20 @@ class KalmanBoxTracker(object):
     """
     Returns the current bounding box estimate.
     """
-    return self.kf.x[:7].reshape((7, ))
+    return self.kf.x.reshape((-1, ))
 
 class AB3DMOT(object):
   def __init__(self, max_age=2, min_hits=3, tracking_name='car'):
     """              
     observation: 
-      before reorder: [h, w, l, x, y, z, rot_y]
-      after reorder:  [x, y, z, rot_y, l, w, h]
+      [x, y, z, rot_y, l, w, h]
     state:
-      [x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot]
+       [x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot, rot_y_dot]
     """
     self.max_age = max_age
     self.min_hits = min_hits
     self.trackers = []
     self.frame_count = 0
-    self.reorder = [3, 4, 5, 6, 2, 1, 0]
-    self.reorder_back = [6, 5, 4, 0, 1, 2, 3]
     self.tracking_name = tracking_name
     self.use_angular_velocity = cfg.TRACKER.USE_ANGULAR_VELOCITY
     # Replace with dependency injection 
@@ -197,7 +194,7 @@ class AB3DMOT(object):
     dets, info = dets_all['dets'], dets_all['info']         # dets: N x 7, float numpy array
     #print('dets.shape: ', dets.shape)
     #print('info.shape: ', info.shape)
-    dets = dets[:, self.reorder]
+    #dets = dets[:, self.reorder]
 
     self.frame_count += 1
 
@@ -243,17 +240,17 @@ class AB3DMOT(object):
         self.trackers.append(trk)
     i = len(self.trackers)
     for trk in reversed(self.trackers):
-        d = trk.get_state()      # bbox location
-        d = d[self.reorder_back]
+        d = trk.get_state()  
+        #d = d[self.reorder_back]
 
         if((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):      
-          ret.append(np.concatenate((d, [trk.id+1], trk.info[:-1], [trk.track_score])).reshape(1,-1)) # +1 as MOT benchmark requires positive
+          ret.append(np.array([d, trk.id+1, trk.track_score])) # +1 as MOT benchmark requires positive
         i -= 1
         #remove dead tracklet
         if(trk.time_since_update >= self.max_age):
           self.trackers.pop(i)
     if(len(ret)>0):
-      return np.concatenate(ret)      # x, y, z, theta, l, w, h, ID, other info, confidence
+      return ret      # x, y, z, theta, l, w, h, ID, other info, confidence
     return np.empty((0,15 + 7))      
 
   def associate_detections_to_trackers(self, detections, trackers, print_debug=False, **kwargs):
@@ -330,7 +327,7 @@ class AB3DMOT(object):
 def format_sample_result(sample_token, tracking_name, tracker):
   '''
   Input:
-    tracker: (9): [h, w, l, x, y, z, rot_y], tracking_id, tracking_score
+    tracker: (3):[[x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot(, rot_y_dot)], tracking_id, tracking_score]
   Output:
   sample_result {
     "sample_token":   <str>         -- Foreign key. Identifies the sample/keyframe for which objects are detected.
@@ -346,16 +343,17 @@ def format_sample_result(sample_token, tracking_name, tracker):
                                        The score is used to determine positive and negative tracks via thresholding.
   }
   '''
-  rotation = Quaternion(axis=[0, 0, 1], angle=tracker[6]).elements
+  box = tracker[0]
+  rotation = Quaternion(axis=[0, 0, 1], angle=box[3]).elements
   sample_result = {
     'sample_token': sample_token,
-    'translation': [tracker[3], tracker[4], tracker[5]],
-    'size': [tracker[1], tracker[2], tracker[0]],
+    'translation': [box[0], box[1], box[2]],
+    'size': [box[4], box[5], box[6]],
     'rotation': [rotation[0], rotation[1], rotation[2], rotation[3]],
-    'velocity': [0, 0],
-    'tracking_id': str(int(tracker[7])),
+    'velocity': [box[7], box[8]],
+    'tracking_id': str(int(tracker[1])),
     'tracking_name': tracking_name,
-    'tracking_score': tracker[8]
+    'tracking_score': tracker[2]
   }
 
   return sample_result
@@ -419,11 +417,11 @@ def track_nuscenes(save_root):
         angle = q.angle if q.axis[2] > 0 else -q.angle
         #print('box.rotation,  angle, axis: ', box.rotation, q.angle, q.axis)
         #print('box.rotation,  angle, axis: ', q.angle, q.axis)
-        #[h, w, l, x, y, z, rot_y]
+        #[x, y, z, rot_y, l, w, h]
         detection = np.array([
-          box.size[2], box.size[0], box.size[1], 
           box.translation[0],  box.translation[1], box.translation[2],
-          angle])
+          angle,
+          box.size[0], box.size[1], box.size[2]])
         #print('detection: ', detection)
         information = np.array([box.detection_score])
         dets[box.detection_name].append(detection)
@@ -437,10 +435,10 @@ def track_nuscenes(save_root):
       for tracking_name in cfg.TRACKER.CLASSES:
         if dets_all[tracking_name]['dets'].shape[0] > 0:
           trackers = mot_trackers[tracking_name].update(dets_all[tracking_name])
-          # (N, 9)
-          # (h, w, l, x, y, z, rot_y), trsacking_id, tracking_score 
+          # (N, 3)
+          # [[x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot], tracking_id, tracking_score]
           # print('trackers: ', trackers)
-          for i in range(trackers.shape[0]):
+          for i in range(len(trackers)):
             sample_result = format_sample_result(current_sample_token, tracking_name, trackers[i])
             results[current_sample_token].append(sample_result)
       cycle_time = time.time() - start_time
