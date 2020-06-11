@@ -21,6 +21,23 @@ from .utils.geometry_utils import poly_area, box3d_vol, convex_hull_intersection
 from .utils.config import cfg, cfg_from_yaml_file, log_config_to_file
 from . import algorithms, covariance
 
+def normalize_angle(angle):
+  """
+  angle: In radians
+  returns: angle in radians between -pi and pi
+  """
+  # reduce the angle  
+  twopi =  (2 * np.pi)
+  angle = angle % twopi
+
+  # force it to be the positive remainder, so that 0 <= angle < 360  
+  angle = (angle + twopi) % twopi
+
+  # force into the minimum absolute value residue class, so that -180 < angle <= 180  
+  if (angle > np.pi):
+      angle -= twopi    
+  return angle
+
 class KalmanBoxTracker(object):
   """
   This class represents the internel state of individual tracked objects observed as bbox.
@@ -111,48 +128,45 @@ class KalmanBoxTracker(object):
       self.first_continuing_hit += 1      # number of continuing hit in the fist time
     
     ######################### orientation correction
-    if self.kf.x[3] >= np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the range
-    if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
+    self.kf.x[3] = normalize_angle(self.kf.x[3])
 
     new_theta = bbox3D[3]
-    if new_theta >= np.pi: new_theta -= np.pi * 2    # make the theta still in the range
-    if new_theta < -np.pi: new_theta += np.pi * 2
+    new_theta = normalize_angle(new_theta)
     bbox3D[3] = new_theta
-
+    
     predicted_theta = self.kf.x[3]
-    if abs(new_theta - predicted_theta) > np.pi / 2.0 and abs(new_theta - predicted_theta) < np.pi * 3 / 2.0:     # if the angle of two theta is not acute angle
+    angle_diff = normalize_angle(new_theta - predicted_theta)
+    if abs(angle_diff) > np.pi / 2.0 and abs(angle_diff) < np.pi * 3 / 2.0:     # if the angle of two theta is not acute angle
       self.kf.x[3] += np.pi       
-      if self.kf.x[3] > np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the range
-      if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
+      self.kf.x[3] = normalize_angle(self.kf.x[3])
       
     # now the angle is acute: < 90 or > 270, convert the case of > 270 to < 90
     if abs(new_theta - self.kf.x[3]) >= np.pi * 3 / 2.0:
       if new_theta > 0: self.kf.x[3] += np.pi * 2
       else: self.kf.x[3] -= np.pi * 2
-    
+      
     ######################### 
 
     self.kf.update(bbox3D)
 
-    if self.kf.x[3] >= np.pi: self.kf.x[3] -= np.pi * 2    # make the theta still in the range
-    if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
+    self.kf.x[3] = normalize_angle(self.kf.x[3])
     self.info = info
 
   def predict(self):       
     """
     Advances the state vector and returns the predicted bounding box estimate.
     """
+    yaw = copy.copy(self.kf.x[3])
     self.kf.predict()      
-    if self.kf.x[3] >= np.pi: self.kf.x[3] -= np.pi * 2
-    if self.kf.x[3] < -np.pi: self.kf.x[3] += np.pi * 2
+    self.kf.x[3] = normalize_angle(self.kf.x[3])
 
     self.age += 1
     if(self.time_since_update>0):
       self.hit_streak = 0
       self.still_first = False
     self.time_since_update += 1
-    self.history.append(self.kf.x)
-    return self.history[-1]
+    self.history.append(self.kf.x.reshape((-1, )))
+    return copy.copy(self.kf.x)
 
   def get_state(self):
     """
@@ -161,12 +175,12 @@ class KalmanBoxTracker(object):
     return self.kf.x.reshape((-1, ))
 
 class AB3DMOT(object):
-  def __init__(self, max_age=2, min_hits=3, tracking_name='car'):
+  def __init__(self, max_age=6, min_hits=2, tracking_name='car'):
     """              
     observation: 
       [x, y, z, rot_y, l, w, h]
     state:
-       [x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot, rot_y_dot]
+      [x, y, z, rot_y, l, w, h, x_dot, y_dot, z_dot, rot_y_dot]
     """
     self.max_age = max_age
     self.min_hits = min_hits
@@ -174,11 +188,10 @@ class AB3DMOT(object):
     self.frame_count = 0
     self.tracking_name = tracking_name
     self.use_angular_velocity = cfg.TRACKER.USE_ANGULAR_VELOCITY
-    # Replace with dependency injection 
     self.match_threshold = cfg.TRACKER.MATCH_THRESHOLD
     self.score_metric_fn = getattr(algorithms,cfg.TRACKER.SCORE_METRIC)
     self.match_algorithm_fn = getattr(algorithms,cfg.TRACKER.MATCH_ALGORITHM)
-
+  
   def update(self, dets_all, print_debug = False):
     """
     Params:
