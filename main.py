@@ -5,7 +5,7 @@ from __future__ import print_function
 import os.path, copy, numpy as np, time, sys
 import json
 
-from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment as linear_assignment
 from filterpy.kalman import KalmanFilter
 from pyquaternion import Quaternion
 from tqdm import tqdm

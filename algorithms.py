@@ -4,16 +4,16 @@ import os.path, copy, numpy as np, time, sys
 from .utils.geometry_utils import diff_orientation_correction, convert_3dbox_to_8corner, iou3d
 import json
 
-from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment as linear_assignment
 
 def pre_threshold_match(distance_matrix):
   to_max_mask = distance_matrix > mahalanobis_threshold
   distance_matrix[to_max_mask] = cfg.TRACKER.MATCH_THRESHOLD
   matched_indices = linear_assignment(distance_matrix)      # hungarian algorithm
-  return matched_indices
+  return np.transpose(np.asarray(matched_indices))
 
 def hungarian_match(distance_matrix):
-  return linear_assignment(distance_matrix)                 # hungarian algorithm
+  return np.transpose(np.asarray(linear_assignment(distance_matrix)))                 # hungarian algorithm
 
 def greedy_match(distance_matrix):
   '''
