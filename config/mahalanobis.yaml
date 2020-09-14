@@ -1,0 +1,24 @@
+
+DATASET:
+  NAME: NuScenes 
+  VERSION: 'v1.0-trainval'
+  DATA_ROOT: '/media/cyz/Data/cadc_tracker/PCDet/data/nuscenes'
+  DETECTION_FILE: '/media/cyz/Data/cadc_tracker/megvii_det/megvii_val.json'
+  DATA_SPLIT: 'val' 
+
+TRACKER:
+  COVARIANCE: 'NuScenesCovariance'       # see covariance.py
+  MATCH_THRESHOLD: 11                    # minimum mahalanobis distance
+  MATCH_ALGORITHM: 'greedy_match'        # see algorithms.py
+  SCORE_METRIC: 'mahalanobis_metric'
+  USE_ANGULAR_VELOCITY: True
+  CLASSES: [
+    'bicycle',
+    'bus',
+    'car',
+    'motorcycle',
+    'pedestrian',
+    'trailer',
+    'truck'
+  ]
+  

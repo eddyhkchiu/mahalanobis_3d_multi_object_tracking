@@ -86,18 +86,19 @@ export PYTHONPATH="${PYTHONPATH}:/juno/u/hkchiu/nuscenes-devkit/python-sdk"
 
 5. Choose a directory YOUR_NUSCENES_DETECTION_DIR (mine is /juno/u/hkchiu/dataset/nuscenes_new), and download then unzip the [MEGVII](https://github.com/poodarchu/Det3D)[3]'s detection results from the NuScenes [tracking webpage](https://www.nuscenes.org/data/detection-megvii.zip). 
 
-6. Edit our code: in main.py, evaluate_nuscenes.py, get_nuscenes_stats.py, replace “/juno/u/hkchiu/dataset/nuscenes_new/” with YOUR_NUSCENES_DETECTION_DIR, and replace “/juno/u/hkchiu/dataset/nuscenes/” with your YOUR_NUSCENES_DATA_DIR. 
+6. Edit configs: in `config/AB3DMOT.yaml` and `config/mahalanobis.yaml` set `DATA_ROOT` to `YOUR_NUSCENES_DATA_DIR`, and set `DETECTION_FILE` to your detection file in `YOUR_NUSCENES_DETECTION_DIR`. 
 
 7. Run the tracking code of our proposed method and the evaluation code (tracking takes 15 minutes, evaluation takes 90 minutes):
 ```
-python main.py val 2 m 11 greedy true nuscenes results/000008;
-python evaluate_nuscenes.py --output_dir results/000008 results/000008/val/results_val_probabilistic_tracking.json > results/000008/output.txt
+python main.py <CONFIG_FILE> <OUTPUT_DIR>
+python main.py config/mahalanobis.yaml results
+python evaluate_nuscenes.py --output_dir results/mahalanobis results/mahalanobis/megvii_val/results_val_probabilistic_tracking.json
 ```
 
 8. You can also run our implementation of the AB3DMOT[2] baseline method:
 ```
-python main.py val 0 iou 0.1 h false nuscenes results/000001;
-python evaluate_nuscenes.py --output_dir results/000001 results/000001/val/results_val_probabilistic_tracking.json > results/000001/output.txt
+python main.py config/AB3DMOT.yaml results
+python evaluate_nuscenes.py --output_dir results/AB3DMOT results/AB3DMOT/megvii_val/results_val_probabilistic_tracking.json
 ```
 
 9. Or you can run all the tracking methods (our implementation of AB3DMOT[2], our ablation methods, and our final proposed method) using the script:
