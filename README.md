@@ -134,3 +134,20 @@ python get_nuscenes_stats.py > nuscenes_train_stats.txt
   year={2020}
 }
 ```
+
+## Follow-up Paper
+
+We also have a follow-up ICRA 2021 paper: [Probabilistic 3D Multi-Modal, Multi-Object Tracking for Autonomous Driving](https://arxiv.org/abs/2012.13755), which proposed a deep learning model that can
+- learn how to fuse features from 2D images and 3D LiDAR point clouds to capture the appearance and geometric information of an object,
+- learn a metric that combines the Mahalanobis and feature distances for data association, and
+- learn when to initialize a new track from an unmatched object detection
+
+```
+@ARTICLE{chiu2021probabilistic,
+  title={Probabilistic 3D Multi-Modal, Multi-Object Tracking for Autonomous Driving},
+  author={Chiu, Hsu-kuang and Li, Jie and Ambrus, Rares and Bohg, Jeannette},
+  journal={IEEE International Conference on Robotics and Automation (ICRA)},
+  year={2021}
+}
+```
+
