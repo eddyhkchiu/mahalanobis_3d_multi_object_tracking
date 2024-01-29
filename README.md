@@ -135,7 +135,9 @@ python get_nuscenes_stats.py > nuscenes_train_stats.txt
 }
 ```
 
-## Follow-up Paper
+## Relevant Papers
+
+### ICRA 2021
 
 We also have a follow-up ICRA 2021 paper: [Probabilistic 3D Multi-Modal, Multi-Object Tracking for Autonomous Driving](https://arxiv.org/abs/2012.13755), which proposed a deep learning model that can
 - learn how to fuse features from 2D images and 3D LiDAR point clouds to capture the appearance and geometric information of an object,
@@ -150,4 +152,18 @@ We also have a follow-up ICRA 2021 paper: [Probabilistic 3D Multi-Modal, Multi-O
   year={2021}
 }
 ```
+
+### ICRA 2024
+
+In my latest ICRA 2024 paper: [Probabilistic 3D Multi-Object Cooperative Tracking for Autonomous Driving via Differentiable Multi-Sensor Kalman Filter](https://arxiv.org/abs/2309.14655), we propose a novel algorithm: DMSTrack for cooperative tracking in autonomous driving. Our algorithm improves the tracking accuracy by 17% with only 0.037x communication costs compared with the state-of-the-art method in V2V4Real, which is the first worldwide available public real-world dataset for vehicle-to-vehicle perception with 3D tracking benchmarks. Our code is available at this [page](https://github.com/eddyhkchiu/DMSTrack/).
+
+```
+@ARTICLE{chiu2024probabilistic,
+  title={Probabilistic 3D Multi-Object Cooperative Tracking for Autonomous Driving via Differentiable Multi-Sensor Kalman Filter},
+  author={Chiu, Hsu-kuang and Wang, Chien-Yi and Chen, Min-Hung and Smith, Stephen F.},
+  journal={IEEE International Conference on Robotics and Automation (ICRA)},
+  year={2024}
+}
+```
+
 
