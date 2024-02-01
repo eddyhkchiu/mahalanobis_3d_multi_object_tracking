@@ -2,8 +2,8 @@ import os
 import sys
 
 import numpy as np
-from main import iou3d, convert_3dbox_to_8corner
-from sklearn.utils.linear_assignment_ import linear_assignment
+from utils.geometry_utils import iou3d, convert_3dbox_to_8corner
+from scipy.optimize import linear_sum_assignment as linear_assignment
 
 from nuscenes import NuScenes
 from nuscenes.eval.common.config import config_factory
@@ -183,7 +183,7 @@ def matching_and_get_diff_stats(pred_boxes, gt_boxes, tracks_gt, matching_dist):
         else:
           assert(False) 
 
-        matched_indices = linear_assignment(distance_matrix)
+        matched_indices = np.transpose(np.asarray(linear_assignment(distance_matrix)))
         #print('matched_indices: ', matched_indices)
         dets = dets[:, reorder_back]
         gts = gts[:, reorder_back]
@@ -243,7 +243,7 @@ if __name__ == '__main__':
     with open(config_path, 'r') as _f:
       cfg_ = DetectionConfig.deserialize(json.load(_f))
 
-  if 'train' in eval_set_:
+ if 'train' in eval_set_:
     detection_file = '/juno/u/hkchiu/dataset/nuscenes_new/megvii_train.json'
     data_root = '/juno/u/hkchiu/dataset/nuscenes/trainval'
     version='v1.0-trainval'

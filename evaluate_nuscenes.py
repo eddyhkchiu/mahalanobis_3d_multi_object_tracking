@@ -24,8 +24,7 @@ if __name__ == "__main__":
                         help='Folder to store result metrics, graphs and example visualizations.')
     parser.add_argument('--eval_set', type=str, default='val',
                         help='Which dataset split to evaluate on, train, val or test.')
-    #parser.add_argument('--dataroot', type=str, default='/data/sets/nuscenes',
-    parser.add_argument('--dataroot', type=str, default='/juno/u/hkchiu/dataset/nuscenes/trainval',
+    parser.add_argument('--dataroot', type=str, default='/media/cyz/Data/cadc_tracker/PCDet/data/nuscenes',
                         help='Default nuScenes data directory.')
     parser.add_argument('--version', type=str, default='v1.0-trainval',
                         help='Which version of the nuScenes dataset to evaluate on, e.g. v1.0-trainval.')
